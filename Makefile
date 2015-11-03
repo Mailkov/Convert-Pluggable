@@ -13,13 +13,12 @@
 
 #     ABSTRACT_FROM => q[lib/Convert/Pluggable.pm]
 #     AUTHOR => [q[bradley andersen <bradley@pvnp.us>]]
-#     BUILD_REQUIRES => { Test::More=>q[0] }
+#     BUILD_REQUIRES => { Test::More=>q[0], FindBin=>q[0] }
 #     CONFIGURE_REQUIRES => { ExtUtils::MakeMaker=>q[0] }
 #     LICENSE => q[Artistic_2_0]
-#     MIN_PERL_VERSION => q[5.006]
 #     NAME => q[Convert::Pluggable]
 #     PL_FILES => {  }
-#     PREREQ_PM => { Test::More=>q[0], Data::Float=>q[0] }
+#     PREREQ_PM => { Test::More=>q[0], FindBin=>q[0], Scalar::Util=>q[0], JSON=>q[0], Exporter=>q[0], Data::Float=>q[0], Moo=>q[0] }
 #     TEST_REQUIRES => {  }
 #     VERSION_FROM => q[lib/Convert/Pluggable.pm]
 #     clean => { FILES=>q[Convert-Pluggable-*] }
@@ -475,7 +474,7 @@ realclean_subdirs :
 # Delete temporary files (via clean) and also delete dist files
 realclean purge ::  clean realclean_subdirs
 	- $(RM_F) \
-	  $(MAKEFILE_OLD) $(FIRST_MAKEFILE) 
+	  $(FIRST_MAKEFILE) $(MAKEFILE_OLD) 
 	- $(RM_RF) \
 	  $(DISTVNAME) 
 
@@ -488,6 +487,7 @@ metafile : create_distdir
 	$(NOECHO) $(ECHO) 'author:' >> META_new.yml
 	$(NOECHO) $(ECHO) '  - '\''bradley andersen <bradley@pvnp.us>'\''' >> META_new.yml
 	$(NOECHO) $(ECHO) 'build_requires:' >> META_new.yml
+	$(NOECHO) $(ECHO) '  FindBin: '\''0'\''' >> META_new.yml
 	$(NOECHO) $(ECHO) '  Test::More: '\''0'\''' >> META_new.yml
 	$(NOECHO) $(ECHO) 'configure_requires:' >> META_new.yml
 	$(NOECHO) $(ECHO) '  ExtUtils::MakeMaker: '\''0'\''' >> META_new.yml
@@ -504,7 +504,10 @@ metafile : create_distdir
 	$(NOECHO) $(ECHO) '    - inc' >> META_new.yml
 	$(NOECHO) $(ECHO) 'requires:' >> META_new.yml
 	$(NOECHO) $(ECHO) '  Data::Float: '\''0'\''' >> META_new.yml
-	$(NOECHO) $(ECHO) '  perl: '\''5.006'\''' >> META_new.yml
+	$(NOECHO) $(ECHO) '  Exporter: '\''0'\''' >> META_new.yml
+	$(NOECHO) $(ECHO) '  JSON: '\''0'\''' >> META_new.yml
+	$(NOECHO) $(ECHO) '  Moo: '\''0'\''' >> META_new.yml
+	$(NOECHO) $(ECHO) '  Scalar::Util: '\''0'\''' >> META_new.yml
 	$(NOECHO) $(ECHO) 'version: '\''0.031'\''' >> META_new.yml
 	-$(NOECHO) $(MV) META_new.yml $(DISTVNAME)/META.yml
 	$(NOECHO) $(ECHO) Generating META.json
@@ -532,6 +535,7 @@ metafile : create_distdir
 	$(NOECHO) $(ECHO) '   "prereqs" : {' >> META_new.json
 	$(NOECHO) $(ECHO) '      "build" : {' >> META_new.json
 	$(NOECHO) $(ECHO) '         "requires" : {' >> META_new.json
+	$(NOECHO) $(ECHO) '            "FindBin" : "0",' >> META_new.json
 	$(NOECHO) $(ECHO) '            "Test::More" : "0"' >> META_new.json
 	$(NOECHO) $(ECHO) '         }' >> META_new.json
 	$(NOECHO) $(ECHO) '      },' >> META_new.json
@@ -543,7 +547,10 @@ metafile : create_distdir
 	$(NOECHO) $(ECHO) '      "runtime" : {' >> META_new.json
 	$(NOECHO) $(ECHO) '         "requires" : {' >> META_new.json
 	$(NOECHO) $(ECHO) '            "Data::Float" : "0",' >> META_new.json
-	$(NOECHO) $(ECHO) '            "perl" : "5.006"' >> META_new.json
+	$(NOECHO) $(ECHO) '            "Exporter" : "0",' >> META_new.json
+	$(NOECHO) $(ECHO) '            "JSON" : "0",' >> META_new.json
+	$(NOECHO) $(ECHO) '            "Moo" : "0",' >> META_new.json
+	$(NOECHO) $(ECHO) '            "Scalar::Util" : "0"' >> META_new.json
 	$(NOECHO) $(ECHO) '         }' >> META_new.json
 	$(NOECHO) $(ECHO) '      }' >> META_new.json
 	$(NOECHO) $(ECHO) '   },' >> META_new.json
@@ -830,8 +837,11 @@ ppd :
 	$(NOECHO) $(ECHO) '    <ABSTRACT>convert between various units of measurement</ABSTRACT>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <AUTHOR>bradley andersen &lt;bradley@pvnp.us&gt;</AUTHOR>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <IMPLEMENTATION>' >> $(DISTNAME).ppd
-	$(NOECHO) $(ECHO) '        <PERLCORE VERSION="5,006,0,0" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <REQUIRE NAME="Data::Float" />' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '        <REQUIRE NAME="Exporter::" />' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '        <REQUIRE NAME="JSON::" />' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '        <REQUIRE NAME="Moo::" />' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '        <REQUIRE NAME="Scalar::Util" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <ARCHITECTURE NAME="x86_64-linux-gnu-thread-multi-5.20" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <CODEBASE HREF="" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    </IMPLEMENTATION>' >> $(DISTNAME).ppd

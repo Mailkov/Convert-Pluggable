@@ -5,6 +5,8 @@
 use strict;
 use warnings;
 
+use FindBin;
+
 use Test::More;
 use Math::Round qw/nearest/;
 use Data::Dump qw/dump/;
@@ -14,7 +16,7 @@ BEGIN { use_ok('Convert::Pluggable') };
 # test we can get a C::P object with and without a data file:
 my $old = new Convert::Pluggable();
 #my $new = new Convert::Pluggable( data_file => 't/units.json' );
-my $new = new Convert::Pluggable( data_file => 't/units.json' );
+my $new = new Convert::Pluggable( data_file => '$FindBin::Bin/units.json' );
 
 my @cps = ($old, $new);
 

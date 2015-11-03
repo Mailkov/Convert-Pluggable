@@ -197,6 +197,9 @@ This gets some useful metadata for \fIconvert()\fR to carry out its work.
 In versions prior to 0.031, this is where you add new unit types so that \fIconvert()\fR can operate on them. This behavior is still supported.  This is an exported sub.
 .PP
 Currently supported units of measurement are: mass, length, time, pressure, energy, power, angle, force, temperature, digital.
+.SS "\fIold_get_units()\fP"
+.IX Subsection "old_get_units()"
+If you don't pass in a data file on construction, units are gotten from a hardcoded hash in this source file.
 .SS "\fIparse_number()\fP"
 .IX Subsection "parse_number()"
 handle numbers with special characters in them, like '6^2' and '2e3'.  written by mwmiller.

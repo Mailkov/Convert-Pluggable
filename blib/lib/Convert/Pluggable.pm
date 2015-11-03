@@ -1152,6 +1152,7 @@ sub get_units {
 
     my $units;
     
+    #open my $data_fh, '<', $data_file or die "Could not open $data_file: [$!]";
     open my $data_fh, '<', $data_file or die "Could not open $data_file: [$!]";
         local $/ = undef;
         $units = <$data_fh>;

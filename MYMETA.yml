@@ -3,6 +3,7 @@ abstract: 'convert between various units of measurement'
 author:
   - 'bradley andersen <bradley@pvnp.us>'
 build_requires:
+  FindBin: '0'
   Test::More: '0'
 configure_requires:
   ExtUtils::MakeMaker: '0'
@@ -19,5 +20,8 @@ no_index:
     - inc
 requires:
   Data::Float: '0'
-  perl: '5.006'
+  Exporter: '0'
+  JSON: '0'
+  Moo: '0'
+  Scalar::Util: '0'
 version: '0.031'
