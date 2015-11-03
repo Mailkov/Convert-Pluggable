@@ -1,65 +1,55 @@
 package Convert::Pluggable;
 
-use 5.006;
-use strict;
-use warnings FATAL => 'all';
+use Moo;
 
-use Scalar::Util qw/looks_like_number/;
 use Data::Float qw/float_is_infinite float_is_nan/;
-
 use Exporter qw(import);
- 
+use JSON;
+use Scalar::Util qw/looks_like_number/;
+
 our @EXPORT_OK = qw(convert get_units);
 
-our $VERSION = '0.021';
+our $VERSION = '0.031';
 
-sub new {
-    my $class = shift;
-    my $self = bless {}, $class;
-    
-    return $self;
-}
+has data_file => (
+    is => 'lazy',
+    default => 'NO_DATA_FILE',
+);
 
-my @types = @{get_units()};
+has types => ( 
+    is => 'lazy',
+);
 
 sub convert_temperatures {
-    # ##
-    # F  = (C * 1.8) + 32            # celsius to fahrenheit
-    # F  = 1.8 * (K - 273.15) + 32   # kelvin  to fahrenheit
-    # F  = R - 459.67                # rankine to fahrenheit
-    # F  = (Ra * 2.25) + 32          # reaumur to fahrenheit
-    #
-    # C  = (F - 32) * 0.555          # fahrenheit to celsius
-    # K  = (F + 459.67) * 0.555      # fahrenheit to kelvin
-    # R  = F + 459.67                # fahrenheit to rankine
-    # Ra = (F - 32) * 0.444          # fahrenheit to reaumur
-    # ##
-
     my $from = shift;
     my $to = shift;
     my $factor = shift;
-   
+
+    # TODO - does convert work when ($from eq $to) ?
+
     # convert $from to fahrenheit:
-    if    ($from =~ /fahrenheit|f/i) { $factor = $factor;                           }
-    elsif ($from =~ /celsius|c/i)    { $factor = ($factor * (9 / 5)) + 32;          }
-    elsif ($from =~ /kelvin|k/i)     { $factor = (9 / 5) * ($factor - 273.15) + 32; }
-    elsif ($from =~ /rankine|r/i)    { $factor = $factor - 459.67;                  }
-    else                             { $factor = ($factor * (9 / 4)) + 32;          } 
+    if    ($from =~ /^(fahrenheit|f)$/i) { $factor = $factor;                           }
+    elsif ($from =~ /^(celsius|c)$/i)    { $factor = ($factor * (9 / 5)) + 32;          }
+    elsif ($from =~ /^(kelvin|k)$/i)     { $factor = (9 / 5) * ($factor - 273.15) + 32; }
+    elsif ($from =~ /^(rankine|r)$/i)    { $factor = $factor - 459.67;                  }
+    else                                 { $factor = ($factor * (9 / 4)) + 32;          } 
     
     # convert fahrenheit $to:
-    if    ($to   =~ /fahrenheit|f/i) { $factor = $factor;                           }
-    elsif ($to   =~ /celsius|c/i)    { $factor = ($factor - 32) * (5 / 9);          }
-    elsif ($to   =~ /kelvin|k/i)     { $factor = ($factor + 459.67) * (5 / 9);      }
-    elsif ($to   =~ /rankine|r/i)    { $factor = $factor + 459.67;                  }
-    else                             { $factor = ($factor - 32) * (4 / 9);          }
+    if    ($to   =~ /^(fahrenheit|f)$/i) { $factor = $factor;                           }
+    elsif ($to   =~ /^(celsius|c)$/i)    { $factor = ($factor - 32) * (5 / 9);          }
+    elsif ($to   =~ /^(kelvin|k)$/i)     { $factor = ($factor + 459.67) * (5 / 9);      }
+    elsif ($to   =~ /^(rankine|r)$/i)    { $factor = $factor + 459.67;                  }
+    else                                 { $factor = ($factor - 32) * (4 / 9);          }
 
     return $factor;
 }
 
 sub get_matches {
+    my $self = shift;
     my $matches = shift;
+    
     my @matches = @{$matches};
-
+    
     $matches[0] =~ s/"/inches/; 
     $matches[0] =~ s/'/feet/; 
     $matches[1] =~ s/"/inches/; 
@@ -69,9 +59,11 @@ sub get_matches {
     my @factors = ();
     my @units = ();
     my @can_be_negative = ();
+   
+    my @types = @{get_units()} if !$self->types; 
     
     foreach my $match (@matches) {
-        foreach my $type (@types) {
+        foreach my $type (@{$self->types}) {
             if (lc $match eq $type->{'unit'} || grep { $_ eq lc $match } @{$type->{'aliases'}}) {
                 push(@match_types, $type->{'type'});
                 push(@factors, $type->{'factor'});
@@ -100,22 +92,12 @@ sub get_matches {
     return \%matches;
 }
 
-# thanks, @mwmiller!
-sub parse_number {
-    my $in = shift;
-
-    my $out = ($in =~ /^(-?\d*(?:\.?\d+))\^(-?\d*(?:\.?\d+))$/) ? $1**$2 : $in;
-
-    return 0 + $out;
-}
-
 sub convert {
     my $self = shift;
 
     my $conversion = shift;
-    
-    my $matches = get_matches([$conversion->{'from_unit'}, $conversion->{'to_unit'}]);  
-   
+    my $matches = get_matches($self, [$conversion->{'from_unit'}, $conversion->{'to_unit'}]);  
+ 
     if (looks_like_number($conversion->{'factor'})) {
         # looks_like_number thinks 'Inf' and 'NaN' are numbers:
         return if float_is_infinite($conversion->{'factor'}) || float_is_nan($conversion->{'factor'});
@@ -143,7 +125,7 @@ sub convert {
         $matches->{'result'} = $conversion->{'factor'} * ($matches->{'factor_2'} / $matches->{'factor_1'});
     }
 
-###
+### TODO - move this to the other POD location
 ### while massaging output is left to the implementation, there are some cases
 ### where answers might seem nonsensical, based on the input precision.  
 ### for example, converting '10mg to tons' with a precision of '3' gives '10 milligrams is 0.000 tons'
@@ -165,7 +147,7 @@ sub convert {
     return $matches;
 };
 
-sub get_units {
+sub old_get_units {
     # metric ton is base unit for mass
     # known SI units and aliases / plurals
     my @mass = (
@@ -969,8 +951,8 @@ sub get_units {
             'type'            => 'digital',
         },
     );
-	
-	# hectare is base unit for area
+    
+    # hectare is base unit for area
     my @area = (
         {
             'unit'      => 'hectare',
@@ -987,49 +969,49 @@ sub get_units {
         {
             'unit'      => 'square meter',
             'factor'    => 10_000,
-            'aliases'   => ['square meters', 'metre^2', 'meter^2', 'metres^2', 'meters^2', 'square metre', 'square metres', 'm^2', 'm�'],
+            'aliases'   => ['square meters', 'metre^2', 'meter^2', 'metres^2', 'meters^2', 'square metre', 'square metres', 'm^2', 'mï¿½'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square kilometer',
             'factor'    => 0.01,
-            'aliases'   => ['square kilometers', 'square kilometre', 'square kilometres', 'km^2', 'km�'],
+            'aliases'   => ['square kilometers', 'square kilometre', 'square kilometres', 'km^2', 'kmï¿½'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square centimeter',
             'factor'    => 100_000_000,
-            'aliases'   => ['square centimeters', 'square centimetre', 'square centimetres', 'cm^2', 'cm�'],
+            'aliases'   => ['square centimeters', 'square centimetre', 'square centimetres', 'cm^2', 'cmï¿½'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square millimeter',
             'factor'    => 10_000_000_000,
-            'aliases'   => ['square millimeters', 'square millimetre', 'square millimetres', 'mm^2', 'mm�'],
+            'aliases'   => ['square millimeters', 'square millimetre', 'square millimetres', 'mm^2', 'mmï¿½'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square mile',
             'factor'    => 1/258.99881,
-            'aliases'   => ['square miles', 'square statute mile', 'square statute miles', 'square land mile', 'square land miles', 'miles^2', 'miles�', 'sq mi'],
+            'aliases'   => ['square miles', 'square statute mile', 'square statute miles', 'square land mile', 'square land miles', 'miles^2', 'milesï¿½', 'sq mi'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square yard',
             'factor'    => 11959.9,
-            'aliases'   => ['square yards', 'yard^2', 'yard�', 'yards�', 'yards^2', 'yd^2', 'yd�', 'yrd^2', 'yrd�'],
+            'aliases'   => ['square yards', 'yard^2', 'yardï¿½', 'yardsï¿½', 'yards^2', 'yd^2', 'ydï¿½', 'yrd^2', 'yrdï¿½'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square foot',
             'factor'    => 107639.1,
-            'aliases'   => ['square feet', 'feet^2', 'feet�', 'foot^2', 'foot�', 'ft�', 'ft^2'],
+            'aliases'   => ['square feet', 'feet^2', 'feetï¿½', 'foot^2', 'footï¿½', 'ftï¿½', 'ft^2'],
             'type'      => 'area',
         },
         {
             'unit'      => 'square inch',
             'factor'    => 15500031,
-            'aliases'   => ['square inches', 'inch^2','inches^2', 'squinch', 'in^2', 'in�'],
+            'aliases'   => ['square inches', 'inch^2','inches^2', 'squinch', 'in^2', 'inï¿½'],
             'type'      => 'area',
         },
         {
@@ -1040,98 +1022,142 @@ sub get_units {
         }
     );
 
-	# litre is the base unit for volume
-	my @volume = (
-		{
+    # litre is the base unit for volume
+    my @volume = (
+        {
             'unit'      => 'litre',
             'factor'    => 1,
             'aliases'   => ['liter', 'litres', 'liters', 'l', 'litter', 'litters'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'millilitre',
             'factor'    => 1000,
             'aliases'   => ['milliliter', 'millilitres', 'milliliters', 'ml'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'cubic metre',
             'factor'    => 1/1000,
-            'aliases'   => ['metre^3', 'meter^3', 'metres^3', 'meters^3', 'm^3', 'm�'],
+            'aliases'   => ['metre^3', 'meter^3', 'metres^3', 'meters^3', 'm^3', 'mï¿½'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'cubic centimetre',
             'factor'    => 1000,
-            'aliases'   => ['centimetre^3', 'centimeter^3', 'centimetres^3', 'centimeters^3', 'cm^3', 'cm�'],
+            'aliases'   => ['centimetre^3', 'centimeter^3', 'centimetres^3', 'centimeters^3', 'cm^3', 'cmï¿½'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'cubic millimetre',
             'factor'    => 1_000_000,
-            'aliases'   => ['millimetre^3', 'millimeter^3', 'millimetres^3', 'millimeters^3', 'mm^3', 'mm�'],
+            'aliases'   => ['millimetre^3', 'millimeter^3', 'millimetres^3', 'millimeters^3', 'mm^3', 'mmï¿½'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'liquid pint',
             'factor'    => 1000/473.176473,
             'aliases'   => ['liquid pints', 'us pints', 'us liquid pint', 'us liquid pints'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'dry pint',
             'factor'    => 1000/550.6104713575,
             'aliases'   => ['dry pints'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'imperial pint',
             'factor'    => 1000/568.26125,
             'aliases'   => ['pints', 'pint', 'imperial pints', 'uk pint', 'british pint', 'pts'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'imperial gallon',
             'factor'    => 1/4.54609,
             'aliases'   => ['imperial gallon', 'uk gallon', 'british gallon', 'british gallons', 'uk gallons'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'us gallon',
             'factor'    => 1/3.785411784,
             'aliases'   => ['fluid gallon', 'us fluid gallon',  'fluid gallons', 'us gallons', 'gallon', 'gallons'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'quart',
             'factor'    => 1/0.946352946,
             'aliases'   => ['liquid quart', 'us quart', 'us quarts', 'quarts', 'liquid quarts'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'imperial quart',
             'factor'    => 4*1000/568.26125,
             'aliases'   => ['imperial quarts', 'british quarts', 'british quart'],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'imperial fluid ounce',
             'factor'    => 16*1000/568.26125,
             'aliases'   => ['imperial fluid ounces', 'imperial fl oz', 'imperial fluid oz', ],
             'type'      => 'volume',
         },
-		{
+        {
             'unit'      => 'us fluid ounce',
             'factor'    => 16*1000/473.176473,
             'aliases'   => ['us fluid ounces', 'us fl oz', 'fl oz', 'fl. oz', 'fluid oz'],
             'type'      => 'volume',
         },
-	);
-	
+        {
+            'unit'      => 'us cup',
+            'factor'    => 4.2267528,
+            'aliases'   => ['us cups', 'cups'],
+            'type'      => 'volume',
+        },
+        {
+            'unit'      => 'metric cup',
+            'factor'    => 4,
+            'aliases'   => ['metric cups'],
+            'type'      => 'volume',
+        },
+    );
+    
     # unit types available for conversion
     my @types = (@mass, @length, @area, @volume, @time, @pressure, @energy, @power, @angle, @force, @temperature, @digital);    
     
     return \@types;
+}
+
+# thanks, @mwmiller!
+sub parse_number {
+    my $in = shift;
+
+    my $out = ($in =~ /^(-?\d*(?:\.?\d+))\^(-?\d*(?:\.?\d+))$/) ? $1**$2 : $in;
+
+    return 0 + $out;
+}
+
+sub _build_types {
+    my $self = shift;
+    
+    return get_units($self->{data_file});
+};
+
+sub get_units {
+    my $data_file = shift;
+    
+    if ($data_file eq 'NO_DATA_FILE') {
+        return old_get_units();        
+    }
+
+    my $units;
+    
+    open my $data_fh, '<', $data_file or die "Could not open $data_file: [$!]";
+        local $/ = undef;
+        $units = <$data_fh>;
+    close($data_fh);
+
+    return decode_json($units);
 }
 
 
@@ -1147,23 +1173,29 @@ Convert::Pluggable - convert between various units of measurement
 
 =head1 VERSION
 
-Version 0.021
+Version 0.031
 
 =head1 SYNOPSIS
 
 convert between various units of measurement
 
+=head1 IMPORTANT NOTICE - FUNCTIONALITY DIVERSION 
+
+You my use this module standalone prior to v0.031; there the units are all hard-coded into the module:
+
 C<use Convert::Pluggable;>
 
-C<...>
+C<my $c = new Convert::Pluggable();>
 
-C< my $result = $c->convert( { 'factor' => '5', 'from_unit' => 'feet', 'to_unit' => 'inches', 'precision' => '3', } ); >
+C<my $result = $c->convert( { 'factor' => '5', 'from_unit' => 'feet', 'to_unit' => 'inches', 'precision' => '3', } );>
 
-will produce '60.000'.
+Starting in v0.031 you may still use this module stand-alone, but you may optionally provide as a constructor argument 
+the name of a data file (currently only supports JSON) - then you will be able to use C::P as a service.  See t/service.pl 
+for an example Dancer2 script.  See t/units.json for an example of a valid json data set. 
 
-See Convert-Pluggable.t for many more example uses.
+See t/Convert-Pluggable.t for many more example uses.
 
-See https://ddh5.duckduckgo.com/?q=10000+minutes+in+microseconds for test uses
+See https://ddh5.duckduckgo.com/?q=10000+minutes+in+microseconds for examples of test uses
 
 =head1 EXPORT
 
@@ -1175,13 +1207,17 @@ convert
 
 Create a new Conversion object.
 
+=head2 new('/path/to/some/data.json')
+
+Create a new Conversion object pre-loaded with serializable data to be used as a service.
+
 =head2 convert_temperatures()
 
 A function for converting between various temperature units.  Currently supports Fahrenheit, Celsius, Kelvin, Rankine, and Raumur.
 
 =head2 convert()
 
-This is the workhorse.  All conversion work (except for temperatures) gets done here.  This is the only exported sub.
+This is the workhorse.  All conversion work (except for temperatures) gets done here.  This is an exported sub.
 
 =head2 get_matches() 
 
@@ -1209,26 +1245,25 @@ This gets some useful metadata for convert() to carry out its work.
 
 =head2 get_units()
 
-This is where you add new unit types so that convert() can operate on them.  Currently supported units of measurement
-are: mass, length, time, pressure, energy, power, angle, force, temperature, digital. 
+In versions prior to 0.031, this is where you add new unit types so that convert() can operate on them. This behavior is still supported.  This is an exported sub.  
+
+Currently supported units of measurement are: mass, length, time, pressure, energy, power, angle, force, temperature, digital.
+
+=head2 old_get_units()
+
+If you don't pass in a data file on construction, units are gotten from a hardcoded hash in this source file.
 
 =head2 parse_number()
 
-handle numbers with special characters in them, like '6^2' and '2e3'.
+handle numbers with special characters in them, like '6^2' and '2e3'.  written by mwmiller.
 
 =head1 AUTHOR
 
 bradley andersen, C<< <bradley at pvnp.us> >>
 
-=head1 BUGS
+=head1 POSSIBLE BUGS (RE-INVESTIGATION NEEDED)
 
 =over 4
-
-=item *
-
-Because of the base unit ('day'), time conversions are off:
-
-e.g.: '1 year to months' yields: '1 year is 11.999 months'
 
 =item *
 
@@ -1268,7 +1303,7 @@ Special thanks to @mintsoft and @jagtalon
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2014 Bradley Andersen. This program is free software; you can redistribute it and/or modify it under the
+Copyright (c) 2014-2015 Bradley Andersen. This program is free software; you can redistribute it and/or modify it under the
 same terms as Perl itself.
 
 =head1 PRIOR ART
@@ -1285,7 +1320,7 @@ Math::Units
 
 =item *
 
-add DDG massaging later if useful
+MODERNIZE WITH MOO (-ish)
 
 =item *
 

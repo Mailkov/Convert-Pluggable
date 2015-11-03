@@ -1,68 +1,32 @@
 package Convert::Pluggable;
 
-use 5.006;
-use strict;
-use warnings FATAL => 'all';
+use Moo;
 
-use Scalar::Util qw/looks_like_number/;
 use Data::Float qw/float_is_infinite float_is_nan/;
-
 use Exporter qw(import);
- 
 use JSON;
+use Scalar::Util qw/looks_like_number/;
 
 our @EXPORT_OK = qw(convert get_units);
 
 our $VERSION = '0.031';
 
-sub new {
-    my $class = shift;
-    my ( $data_file ) = @_;
+has data_file => (
+    is => 'lazy',
+    default => 'NO_DATA_FILE',
+);
 
-    $data_file ||= 'NO_DATA_FILE';
-
-    my $self = bless {
-        data_file  => $data_file,
-        types      => get_units($data_file),
-    }, $class;
-
-    return $self;
-}
-
-sub get_units {
-    my $data_file = shift;
-
-    if ($data_file eq 'NO_DATA_FILE') {
-        return old_get_units();        
-    }
-    
-    my $units;
-    
-    open my $data_fh, '<', $data_file or die "Could not open $data_file: [$!]";
-        local $/ = undef;
-        $units = <$data_fh>;
-    close($data_fh);
-
-    return decode_json($units);
-}
+has types => ( 
+    is => 'lazy',
+);
 
 sub convert_temperatures {
-    # ##
-    # F  = (C * 1.8) + 32            # celsius to fahrenheit
-    # F  = 1.8 * (K - 273.15) + 32   # kelvin  to fahrenheit
-    # F  = R - 459.67                # rankine to fahrenheit
-    # F  = (Ra * 2.25) + 32          # reaumur to fahrenheit
-    #
-    # C  = (F - 32) * 0.555          # fahrenheit to celsius
-    # K  = (F + 459.67) * 0.555      # fahrenheit to kelvin
-    # R  = F + 459.67                # fahrenheit to rankine
-    # Ra = (F - 32) * 0.444          # fahrenheit to reaumur
-    # ##
-
     my $from = shift;
     my $to = shift;
     my $factor = shift;
-   
+
+    # TODO - does convert work when ($from eq $to) ?
+
     # convert $from to fahrenheit:
     if    ($from =~ /^(fahrenheit|f)$/i) { $factor = $factor;                           }
     elsif ($from =~ /^(celsius|c)$/i)    { $factor = ($factor * (9 / 5)) + 32;          }
@@ -81,10 +45,11 @@ sub convert_temperatures {
 }
 
 sub get_matches {
-    my $self    = shift;
+    my $self = shift;
     my $matches = shift;
+    
     my @matches = @{$matches};
-
+    
     $matches[0] =~ s/"/inches/; 
     $matches[0] =~ s/'/feet/; 
     $matches[1] =~ s/"/inches/; 
@@ -94,9 +59,11 @@ sub get_matches {
     my @factors = ();
     my @units = ();
     my @can_be_negative = ();
+   
+    my @types = @{get_units()} if !$self->types; 
     
     foreach my $match (@matches) {
-        foreach my $type ($self->{types}) {
+        foreach my $type (@{$self->types}) {
             if (lc $match eq $type->{'unit'} || grep { $_ eq lc $match } @{$type->{'aliases'}}) {
                 push(@match_types, $type->{'type'});
                 push(@factors, $type->{'factor'});
@@ -125,22 +92,12 @@ sub get_matches {
     return \%matches;
 }
 
-# thanks, @mwmiller!
-sub parse_number {
-    my $in = shift;
-
-    my $out = ($in =~ /^(-?\d*(?:\.?\d+))\^(-?\d*(?:\.?\d+))$/) ? $1**$2 : $in;
-
-    return 0 + $out;
-}
-
 sub convert {
     my $self = shift;
 
     my $conversion = shift;
-    
-    my $matches = get_matches([$conversion->{'from_unit'}, $conversion->{'to_unit'}]);  
-   
+    my $matches = get_matches($self, [$conversion->{'from_unit'}, $conversion->{'to_unit'}]);  
+ 
     if (looks_like_number($conversion->{'factor'})) {
         # looks_like_number thinks 'Inf' and 'NaN' are numbers:
         return if float_is_infinite($conversion->{'factor'}) || float_is_nan($conversion->{'factor'});
@@ -168,7 +125,7 @@ sub convert {
         $matches->{'result'} = $conversion->{'factor'} * ($matches->{'factor_2'} / $matches->{'factor_1'});
     }
 
-###
+### TODO - move this to the other POD location
 ### while massaging output is left to the implementation, there are some cases
 ### where answers might seem nonsensical, based on the input precision.  
 ### for example, converting '10mg to tons' with a precision of '3' gives '10 milligrams is 0.000 tons'
@@ -1171,6 +1128,39 @@ sub old_get_units {
     return \@types;
 }
 
+# thanks, @mwmiller!
+sub parse_number {
+    my $in = shift;
+
+    my $out = ($in =~ /^(-?\d*(?:\.?\d+))\^(-?\d*(?:\.?\d+))$/) ? $1**$2 : $in;
+
+    return 0 + $out;
+}
+
+sub _build_types {
+    my $self = shift;
+    
+    return get_units($self->{data_file});
+};
+
+sub get_units {
+    my $data_file = shift;
+    
+    if ($data_file eq 'NO_DATA_FILE') {
+        return old_get_units();        
+    }
+
+    my $units;
+    
+    #open my $data_fh, '<', $data_file or die "Could not open $data_file: [$!]";
+    open my $data_fh, '<', $data_file or die "Could not open $data_file: [$!]";
+        local $/ = undef;
+        $units = <$data_fh>;
+    close($data_fh);
+
+    return decode_json($units);
+}
+
 
 
 1;
@@ -1228,7 +1218,7 @@ A function for converting between various temperature units.  Currently supports
 
 =head2 convert()
 
-This is the workhorse.  All conversion work (except for temperatures) gets done here.  This is the only exported sub.
+This is the workhorse.  All conversion work (except for temperatures) gets done here.  This is an exported sub.
 
 =head2 get_matches() 
 
@@ -1256,9 +1246,13 @@ This gets some useful metadata for convert() to carry out its work.
 
 =head2 get_units()
 
-In versions prior to 0.031, this is where you add new unit types so that convert() can operate on them.  
+In versions prior to 0.031, this is where you add new unit types so that convert() can operate on them. This behavior is still supported.  This is an exported sub.  
 
 Currently supported units of measurement are: mass, length, time, pressure, energy, power, angle, force, temperature, digital.
+
+=head2 old_get_units()
+
+If you don't pass in a data file on construction, units are gotten from a hardcoded hash in this source file.
 
 =head2 parse_number()
 
@@ -1271,12 +1265,6 @@ bradley andersen, C<< <bradley at pvnp.us> >>
 =head1 POSSIBLE BUGS (RE-INVESTIGATION NEEDED)
 
 =over 4
-
-=item *
-
-Because of the base unit ('day'), time conversions are off:
-
-e.g.: '1 year to months' yields: '1 year is 11.999 months'
 
 =item *
 
