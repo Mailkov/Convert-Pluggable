@@ -122,7 +122,13 @@ sub convert {
         $matches->{'result'} = convert_temperatures($matches->{'from_unit'}, $matches->{'to_unit'}, $conversion->{'factor'})
     }
     else {
-        my $rounded = sprintf "%.${precision}f", ($matches->{'factor_2'} / $matches->{'factor_1'});
+        my $rounded;
+        my $rapp = ($matches->{'factor_2'} / $matches->{'factor_1'});
+        if($rapp > 1_000_000 || $rapp < 1) {
+            $rounded = (sprintf "%.${precision}g", $rapp);
+        } else {
+            $rounded = (sprintf "%.${precision}f", $rapp);
+        }
         $matches->{'result'} = $conversion->{'factor'} * $rounded;
     }
 
