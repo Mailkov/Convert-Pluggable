@@ -122,7 +122,8 @@ sub convert {
         $matches->{'result'} = convert_temperatures($matches->{'from_unit'}, $matches->{'to_unit'}, $conversion->{'factor'})
     }
     else {
-        $matches->{'result'} = $conversion->{'factor'} * ($matches->{'factor_2'} / $matches->{'factor_1'});
+        my $rounded = sprintf "%.${precision}f", ($matches->{'factor_2'} / $matches->{'factor_1'});
+        $matches->{'result'} = $conversion->{'factor'} * $rounded;
     }
 
 ### TODO - move this to the other POD location
